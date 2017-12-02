@@ -1,27 +1,33 @@
 ﻿using System;
 using System.Diagnostics;
 using Consumer.Messages;
-using Rebus.Configuration;
+using Rebus.Activation;
+using Rebus.Config;
 using Rebus.Logging;
-using Rebus.Transports.Sql;
+using Rebus.SqlServer.Transport;
 
 namespace Consumer
 {
     class Program
     {
+        const string ConnectionString = "server=.; database=rebus; trusted_connection=true";
+
         static void Main()
         {
-            using (var adapter = new BuiltinContainerAdapter())
+            using (var adapter = new BuiltinHandlerActivator())
             {
-                adapter.Handle<Job>(job =>
+                adapter.Handle<Job>(async (bus, job) =>
                 {
-                    adapter.Bus.Reply(new Reply(job.KeyChar, Process.GetCurrentProcess().Id));
+                    var keyChar = job.KeyChar;
+                    var processId = Process.GetCurrentProcess().Id;
+                    var reply = new Reply(keyChar, processId);
+
+                    await bus.Reply(reply);
                 });
 
                 Configure.With(adapter)
                     .Logging(l => l.ColoredConsole(minLevel: LogLevel.Warn))
-                    .Transport(t => t.UseSqlServer("server=.; database=rebus; trusted_connection=true", "consumer.input", "error").EnsureTableIsCreated())
-                    .CreateBus()
+                    .Transport(t => t.UseSqlServer(ConnectionString, "Messages", "consumer.input"))
                     .Start();
 
                 Console.WriteLine("Press ENTER to quit");

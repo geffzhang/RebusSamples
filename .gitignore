@@ -1,5 +1,7 @@
 obj
 bin
+.vs
+.vs/*
 deploy
 deploy/*
 packages
@@ -16,5 +18,3 @@ _ReSharper.*
 *.suo
 *.cache
 ~$*
-
-src/Rebus.Tests/azure_connection_string.txt

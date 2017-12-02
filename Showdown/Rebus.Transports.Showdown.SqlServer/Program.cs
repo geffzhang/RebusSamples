@@ -1,51 +1,49 @@
-﻿using Rebus.Configuration;
-using Rebus.Logging;
+﻿using System.Data.SqlClient;
+using Rebus.Config;
 using Rebus.Transports.Showdown.Core;
-using Rebus.Transports.Sql;
 
 namespace Rebus.Transports.Showdown.SqlServer
 {
     public class Program
     {
-        const string SenderInputQueue = "test.showdown.sender";
-        const string ReceiverInputQueue = "test.showdown.receiver";
-        const string SqlServerConnectionString = "server=.;initial catalog=rebus_test;integrated security=sspi";
-
-        const string MessageTableName = SqlServerMessageQueueConfigurationExtension
-            .DefaultMessagesTableName;
+        const string QueueName = "test_showdown";
+        const string SqlServerConnectionString = "server=.; initial catalog=rebus2_test; integrated security=sspi";
+        const int TableNotFound = 208;
 
         public static void Main()
         {
-            using (var runner = new ShowdownRunner(ReceiverInputQueue))
+            using (var runner = new ShowdownRunner())
             {
-                PurgeInputQueue(SenderInputQueue);
-                PurgeInputQueue(ReceiverInputQueue);
+                PurgeInputQueue();
 
-                Configure.With(runner.SenderAdapter)
-                         .Logging(l => l.ColoredConsole(LogLevel.Warn))
-                         .Transport(t => t.UseSqlServer(SqlServerConnectionString, SenderInputQueue, "error"))
-                         .MessageOwnership(o => o.Use(runner))
-                         .CreateBus()
-                         .Start();
+                Configure.With(runner.Adapter)
+                    .Logging(l => l.None())
+                    .Transport(t => t.UseSqlServer(SqlServerConnectionString, QueueName))
+                    .Options(o => o.SetMaxParallelism(20))
+                    .Start();
 
-                Configure.With(runner.ReceiverAdapter)
-                         .Logging(l => l.ColoredConsole(LogLevel.Warn))
-                         .Transport(t => t.UseSqlServer(SqlServerConnectionString, ReceiverInputQueue, "error"))
-                         .MessageOwnership(o => o.Use(runner))
-                         .CreateBus()
-                         .Start();
-
-                runner.Run();
+                runner.Run(typeof(Program).Namespace).Wait();
             }
         }
 
-        static void PurgeInputQueue(string inputQueueName)
+        static void PurgeInputQueue()
         {
-            var queue = new SqlServerMessageQueue(SqlServerConnectionString,
-                MessageTableName,
-                inputQueueName);
-            
-            queue.PurgeInputQueue();
+            using (var connection = new SqlConnection(SqlServerConnectionString))
+            {
+                connection.Open();
+
+                try
+                {
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = $"DROP TABLE [{QueueName}]";
+                        command.ExecuteNonQuery();
+                    }
+                }
+                catch (SqlException sqlException) when (sqlException.Number == TableNotFound)
+                {
+                }
+            }
         }
     }
 }

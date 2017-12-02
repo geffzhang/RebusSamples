@@ -1,37 +1,36 @@
-﻿using Rebus.Configuration;
+﻿using Rebus.Config;
 using Rebus.Logging;
+using Rebus.RabbitMq;
 using Rebus.Transports.Showdown.Core;
-using Rebus.RabbitMQ;
 
-namespace Rebus.Transports.Showndown.RabbitMq
+namespace Rebus.Transports.Showdown.RabbitMq
 {
     public class Program
     {
-        const string SenderInputQueue = "test.showdown.sender";
-        const string ReceiverInputQueue = "test.showdown.receiver";
+        const string Queue = "test.showdown";
         const string RabbitMqConnectionString = "amqp://localhost";
 
         public static void Main()
         {
-            using (var runner = new ShowdownRunner(ReceiverInputQueue))
+            using (var runner = new ShowdownRunner())
             {
-                Configure.With(runner.SenderAdapter)
+                PurgeInputQueue(Queue);
+
+                Configure.With(runner.Adapter)
                     .Logging(l => l.ColoredConsole(LogLevel.Warn))
-                    .Transport(t => t.UseRabbitMq(RabbitMqConnectionString, SenderInputQueue, "error")
-                        .PurgeInputQueue())
-                    .MessageOwnership(o => o.Use(runner))
-                    .CreateBus()
+                    .Transport(t => t.UseRabbitMq(RabbitMqConnectionString, Queue))
+                    .Options(o => o.SetMaxParallelism(20))
                     .Start();
 
-                Configure.With(runner.ReceiverAdapter)
-                    .Logging(l => l.ColoredConsole(LogLevel.Warn))
-                    .Transport(t => t.UseRabbitMq(RabbitMqConnectionString, ReceiverInputQueue, "error")
-                        .PurgeInputQueue())
-                    .MessageOwnership(o => o.Use(runner))
-                    .CreateBus()
-                    .Start();
+                runner.Run(typeof(Program).Namespace).Wait();
+            }
+        }
 
-                runner.Run();
+        static void PurgeInputQueue(string inputQueueName)
+        {
+            using (var transport = new RabbitMqTransport(RabbitMqConnectionString, inputQueueName, new NullLoggerFactory()))
+            {
+                transport.PurgeInputQueue();
             }
         }
     }

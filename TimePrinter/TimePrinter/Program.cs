@@ -5,7 +5,6 @@ using Rebus.Activation;
 using Rebus.Config;
 using Rebus.Handlers;
 using Rebus.Routing.TypeBased;
-using Rebus.Transport.Msmq;
 
 namespace TimePrinter
 {
@@ -21,10 +20,10 @@ namespace TimePrinter
                 activator.Register(() => new PrintDateTime());
 
                 var bus = Configure.With(activator)
-                                   .Logging(l => l.None())
-                                   .Transport(t => t.UseMsmq(InputQueueName))
-                                   .Routing(r => r.TypeBased().Map<DateTime>(InputQueueName))
-                                   .Start();
+                    .Logging(l => l.None())
+                    .Transport(t => t.UseMsmq(InputQueueName))
+                    .Routing(r => r.TypeBased().Map<DateTime>(InputQueueName))
+                    .Start();
 
                 timer.Elapsed += delegate { bus.Send(DateTime.Now).Wait(); };
                 timer.Interval = 1000;
